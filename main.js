@@ -106,15 +106,19 @@ float snoise(vec3 v) {
 }
 
 uniform float uTime;
-uniform float uAudioFrequency;
+uniform float uBass;
+uniform float uTreble;
 varying vec3 vPosition;
 
 void main() {
     vPosition = position;
 
     // Displace the vertices with noise
-    float displacement = snoise(position * 0.01 + uTime * 0.1) * (5.0 + uAudioFrequency * 0.1);
-    vec3 displacedPosition = position + normalize(position) * displacement;
+    float noiseDisp = snoise(position * 0.01 + uTime * 0.1) * 5.0;
+    float bassDisp = uBass * 0.2;
+    float trebleDisp = snoise(position * 0.5 + uTime) * uTreble * 0.05;
+    float totalDisplacement = noiseDisp + bassDisp + trebleDisp;
+    vec3 displacedPosition = position + normalize(position) * totalDisplacement;
 
     vec4 modelPosition = modelMatrix * vec4(displacedPosition, 1.0);
     vec4 viewPosition = viewMatrix * modelPosition;
@@ -577,7 +581,8 @@ function updateParticleSpheres() {
             uniforms: {
                 uTime: { value: 0 },
                 uColor: { value: c },
-                uAudioFrequency: { value: 0 },
+                uBass: { value: 0 },
+                uTreble: { value: 0 },
             },
             vertexShader: sphereVertexShader,
             fragmentShader: sphereFragmentShader,
@@ -652,11 +657,17 @@ function render() {
 
     let wins = windowManager.getWindows();
 
-    let audioFrequency = 0;
+    let bassFrequency = 0;
+    let trebleFrequency = 0;
     if (analyser) {
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(dataArray);
-        audioFrequency = dataArray.reduce((a, b) => a + b) / dataArray.length;
+
+        const bassSlice = dataArray.slice(0, Math.floor(dataArray.length * 0.2));
+        bassFrequency = bassSlice.reduce((a, b) => a + b) / bassSlice.length;
+
+        const trebleSlice = dataArray.slice(Math.floor(dataArray.length * 0.5), dataArray.length - 1);
+        trebleFrequency = trebleSlice.reduce((a, b) => a + b) / trebleSlice.length;
     }
 
     for (let i = 0; i < particleSpheres.length; i++) {
@@ -664,7 +675,8 @@ function render() {
         let win = wins[i];
 
         sphere.material.uniforms.uTime.value = elapsedTime;
-        sphere.material.uniforms.uAudioFrequency.value = audioFrequency;
+        sphere.material.uniforms.uBass.value = bassFrequency;
+        sphere.material.uniforms.uTreble.value = trebleFrequency;
 
         let posTarget = { x: win.shape.x + (win.shape.w * .5), y: win.shape.y + (win.shape.h * .5) };
         sphere.position.x = sphere.position.x + (posTarget.x - sphere.position.x) * falloff;
