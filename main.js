@@ -106,13 +106,14 @@ float snoise(vec3 v) {
 }
 
 uniform float uTime;
+uniform float uAudioFrequency;
 varying vec3 vPosition;
 
 void main() {
     vPosition = position;
 
     // Displace the vertices with noise
-    float displacement = snoise(position * 0.01 + uTime * 0.1) * 5.0;
+    float displacement = snoise(position * 0.01 + uTime * 0.1) * (5.0 + uAudioFrequency * 0.1);
     vec3 displacedPosition = position + normalize(position) * displacement;
 
     vec4 modelPosition = modelMatrix * vec4(displacedPosition, 1.0);
@@ -474,10 +475,35 @@ function init() {
     clock = new t.Clock();
     setupScene();
     setupWindowManager();
+    setupAudio();
     resize();
     updateWindowShape(false);
     render();
     window.addEventListener('resize', resize);
+}
+
+let analyser;
+function setupAudio() {
+    const audioPlayer = document.getElementById('audio-player');
+    const audioFileInput = document.getElementById('audio-file-input');
+
+    audioFileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        const url = URL.createObjectURL(file);
+        audioPlayer.src = url;
+        audioPlayer.play();
+        setupAudioContext();
+    });
+
+    function setupAudioContext() {
+        if (analyser) return;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        analyser = audioContext.createAnalyser();
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        analyser.fftSize = 256;
+    }
 }
 
 function setupScene() {
@@ -551,6 +577,7 @@ function updateParticleSpheres() {
             uniforms: {
                 uTime: { value: 0 },
                 uColor: { value: c },
+                uAudioFrequency: { value: 0 },
             },
             vertexShader: sphereVertexShader,
             fragmentShader: sphereFragmentShader,
@@ -625,11 +652,19 @@ function render() {
 
     let wins = windowManager.getWindows();
 
+    let audioFrequency = 0;
+    if (analyser) {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        audioFrequency = dataArray.reduce((a, b) => a + b) / dataArray.length;
+    }
+
     for (let i = 0; i < particleSpheres.length; i++) {
         let sphere = particleSpheres[i];
         let win = wins[i];
 
         sphere.material.uniforms.uTime.value = elapsedTime;
+        sphere.material.uniforms.uAudioFrequency.value = audioFrequency;
 
         let posTarget = { x: win.shape.x + (win.shape.w * .5), y: win.shape.y + (win.shape.h * .5) };
         sphere.position.x = sphere.position.x + (posTarget.x - sphere.position.x) * falloff;

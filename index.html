@@ -11,9 +11,22 @@
 			padding: 0;
 		}
 
+		#audio-controls {
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			z-index: 100;
+			color: white;
+		}
+
 	</style>
 </head>
 <body>
+	<div id="audio-controls">
+		<label for="audio-file-input">Upload MP3:</label>
+		<input type="file" id="audio-file-input" accept=".mp3">
+		<audio id="audio-player" controls></audio>
+	</div>
 	
 	<script type="module" src="main.js"></script>
 </body>
